@@ -1,0 +1,6 @@
+# Normalize line endings across platforms; keep shell/text tooling happy.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.parquet binary
+*.duckdb binary

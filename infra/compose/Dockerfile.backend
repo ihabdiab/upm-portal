@@ -1,0 +1,28 @@
+# Single image for backend / worker / scheduler (same code, different commands).
+FROM python:3.12-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH"
+
+# uv for fast, reproducible installs.
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+
+# Copy the whole monorepo (workspace members must be present for `uv sync`).
+COPY pyproject.toml uv.lock ./
+COPY packages ./packages
+COPY apps ./apps
+COPY control-plane ./control-plane
+
+# Frontend is not needed in the Python image.
+RUN rm -rf apps/frontend
+
+RUN uv sync --frozen --no-dev
+
+EXPOSE 8000
+
+# Default: API server (hosts the DuckDB Gateway). Overridden for worker/scheduler.
+CMD ["uvicorn", "upm_backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,16 @@
+# Prometheus scrape config (§12). App-level /metrics endpoints land in Phase 4
+# (per-job duration/rows, queue depth, query latency, cache hit rate, stale-table gauge).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Phase 4: enable once the backend exposes /metrics (prometheus_client).
+  # - job_name: upm-backend
+  #   metrics_path: /api/metrics
+  #   static_configs:
+  #     - targets: ["backend:8000"]

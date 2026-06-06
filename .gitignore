@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.uv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+apps/frontend/dist/
+apps/frontend/dist-dev/
+
+# Data volumes (analytics plane, landing zone, exports, postgres) — never committed
+data/
+*.duckdb
+*.duckdb.wal
+
+# Externally-provided sample datasets (used for local testing; not part of the app)
+oracle-sample-data/
+
+# Local SQLite demo db
+*.sqlite3
+control.sqlite3
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+infra/compose/secrets/*
+!infra/compose/secrets/.gitkeep
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

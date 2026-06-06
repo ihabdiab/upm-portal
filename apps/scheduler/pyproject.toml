@@ -1,0 +1,26 @@
+[project]
+name = "upm-scheduler"
+version = "0.1.0"
+description = "Celery Beat + RedBeat: schedules derived from job_configs rows (ADR-004)."
+requires-python = ">=3.12"
+dependencies = [
+    "celery>=5.4",
+    "celery-redbeat>=2.2",
+    "redis>=5.0",
+    "upm-shared",
+    "upm-control-plane",
+]
+
+[project.scripts]
+upm-scheduler = "upm_scheduler.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["upm_scheduler"]
+
+[tool.uv.sources]
+upm-shared = { workspace = true }
+upm-control-plane = { workspace = true }

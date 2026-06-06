@@ -1,0 +1,53 @@
+[project]
+name = "upm-portal"
+version = "0.1.0"
+description = "UPM Platform — Telecom IT-OSS Unified Performance Management (monorepo umbrella)"
+requires-python = ">=3.12"
+# The umbrella aggregates every workspace member into one dev environment.
+dependencies = [
+    "upm-shared",
+    "upm-sql-tools",
+    "upm-control-plane",
+    "upm-dataplane",
+    "upm-backend",
+    "upm-ingestion",
+    "upm-scheduler",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[tool.uv.workspace]
+members = ["packages/*", "apps/*", "control-plane"]
+exclude = ["apps/frontend"]  # JS app, not a Python workspace member
+
+[tool.uv.sources]
+upm-shared = { workspace = true }
+upm-sql-tools = { workspace = true }
+upm-control-plane = { workspace = true }
+upm-dataplane = { workspace = true }
+upm-backend = { workspace = true }
+upm-ingestion = { workspace = true }
+upm-scheduler = { workspace = true }
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "B008",   # FastAPI Depends() in defaults is idiomatic
+    "B904",   # raising HTTPException inside except is the FastAPI idiom
+    "UP042",  # keep explicit (str, Enum) — StrEnum changes str() semantics
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["packages", "apps", "control-plane"]
+asyncio_mode = "auto"
