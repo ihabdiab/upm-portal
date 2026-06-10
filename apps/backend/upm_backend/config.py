@@ -8,7 +8,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="UPM_", env_file=".env", extra="ignore")
+    # NOTE: we intentionally do NOT auto-load a .env file here. The repo's `.env` is the
+    # *Compose* env-file (it uses container hostnames like postgres:5432 / redis:6379) and
+    # is injected as real env vars inside Docker. Local `uv run` processes read os.environ
+    # only, so with no env set they fall back to safe local defaults (SQLite + dev mode).
+    model_config = SettingsConfigDict(env_prefix="UPM_", extra="ignore")
 
     # Stores
     database_url: str = "sqlite+pysqlite:///./control.sqlite3"

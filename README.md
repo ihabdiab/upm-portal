@@ -45,8 +45,19 @@ uv run uvicorn upm_backend.main:app --port 8000   # serve the API (hosts the Gat
 In another terminal:
 
 ```bash
-cd apps/frontend && npm install && npm run dev     # http://localhost:5173 (proxies /api -> :8000)
+cd apps/frontend
+npm install
+npm run dev                  # http://localhost:5173 (proxies /api -> :8000)
 ```
+
+> **Local runs ignore `.env` on purpose.** The repo's `.env` is the *Docker Compose* env-file
+> (it uses container hostnames like `postgres:5432` / `redis:6379`). Local `uv run` processes read
+> real environment variables only, so with nothing set they use safe defaults: **SQLite control
+> plane + in-process Gateway + dev mode** (no Redis/Postgres needed). Don't `export UPM_REDIS_URL`
+> for a local run unless you actually have a local Redis.
+>
+> **Windows / PowerShell:** run each command on its own line (PowerShell 5.1 has no `&&`). The DB and
+> DuckDB files are written under `./control.sqlite3` and `./data/` (both git-ignored).
 
 Open http://localhost:5173 and log in:
 
@@ -104,6 +115,46 @@ Builder and click **Run now** — that exercises the real pipeline: Celery worke
 for the hourly schedule.)
 
 ---
+
+## Kick the tires — a 10-minute review checklist
+
+Use this to evaluate the current build before adding more. Run **Quickstart A**, then:
+
+```bash
+uv run upm cs-demo           # optional: load the REAL CS dataset + its dashboard
+uv run pytest -q             # 21 tests: sql-tools, gateway, API smoke, Phase-2 paths
+cd apps/frontend && npm run build   # type-check + production build
+```
+
+Then open http://localhost:5173 and walk the three roles:
+
+**Viewer** (`viewer@upm.com` / `viewer12345`) — read-only
+- [ ] Dashboards → open **Hybrid Cell Overview** (and **CS Cell KPIs (real data)** if you ran `cs-demo`).
+- [ ] Each widget shows a **"data as of …"** chip; charts/KPIs/table render.
+- [ ] No Ingest/Jobs/Connections nav (RBAC hides authoring); `/api/jobs` returns 403.
+
+**Builder** (`builder@upm.com` / `builder12345`) — can author
+- [ ] **Ingest** → upload a CSV (try `oracle-sample-data/.../PS_CELL_SAMPLE.csv`) → review the
+      **inferred schema** (types/delimiter/row estimate) → pick a target table → **Create job & load now**.
+- [ ] **Catalog** → the new table appears with a row count; open it to see columns + freshness.
+- [ ] **Jobs** → see your job; **Run now** again; expand **Runs** for history (rows read/written, status).
+- [ ] **Connections** → **New connection** (e.g. Generic, url `sqlite://`) → **Test** → should say OK.
+- [ ] **Dashboard Builder** (Dashboards → New) → add a widget, pick the new table, add an aggregation
+      + group-by, set the viz fields → **live preview** renders → **Save** → view it.
+
+**Admin** (`admin@upm.com` / `admin12345`)
+- [ ] Sees every project; can do everything the Builder can, plus user/project management via `/api/admin/*`.
+
+**Reset local state** (start fresh): stop the API, then
+
+```bash
+rm -f control.sqlite3 && rm -rf data/        # PowerShell: Remove-Item control.sqlite3, data -Recurse -Force
+uv run upm demo                              # or: uv run upm cs-demo
+```
+
+**What's intentionally not here yet** (so you don't flag it as a bug): maps (Phase 3), AI chat tool-loop
+(scaffold only), drag-and-drop dashboard layout (grid is numeric for now), and DuckDB-direct-query as a
+job source. See the roadmap table below.
 
 ## Architecture (what runs where)
 

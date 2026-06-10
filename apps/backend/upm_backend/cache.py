@@ -42,12 +42,21 @@ class InMemoryCache:
 
 
 class RedisCache:
+    """Best-effort cache. A Redis hiccup must never fail a read — on any error we treat
+    it as a miss (get) or silently skip (set); the query still serves from DuckDB."""
+
     def __init__(self, client: Any) -> None:
         self._r = client
 
     def get(self, key: str) -> dict | None:
-        raw = self._r.get(key)
+        try:
+            raw = self._r.get(key)
+        except Exception:  # noqa: BLE001 - cache is optional; degrade to a miss
+            return None
         return json.loads(raw) if raw else None
 
     def set(self, key: str, value: dict, ttl_s: int) -> None:
-        self._r.set(key, json.dumps(value, default=str), ex=ttl_s)
+        try:
+            self._r.set(key, json.dumps(value, default=str), ex=ttl_s)
+        except Exception:  # noqa: BLE001 - skip caching if Redis is unavailable
+            pass
