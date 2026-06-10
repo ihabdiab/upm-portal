@@ -66,6 +66,7 @@ export interface QueryResponse {
   data_as_of?: string | null;
   stale: boolean;
   cached: boolean;
+  sql?: string | null;
 }
 
 export interface Widget {

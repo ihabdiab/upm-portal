@@ -64,6 +64,8 @@ class QueryRequest(BaseModel):
     page: int = Field(default=1, ge=1)
     # Pin a specific materialization for reproducibility (None = latest).
     table_version_pin: int | None = None
+    # Echo the rendered SQL back in the response (widget "view query" UX).
+    include_sql: bool = False
 
     model_config = {"populate_by_name": True}
 
@@ -76,3 +78,5 @@ class QueryResponse(BaseModel):
     data_as_of: datetime | None = None
     stale: bool = False
     cached: bool = False
+    # The parameterized SQL that produced `rows` (only when include_sql was requested).
+    sql: str | None = None

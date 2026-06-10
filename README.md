@@ -85,9 +85,15 @@ own file: `uv run upm load-csv <path.csv> <table_name>`.
 
 Logged in as a Builder/Admin:
 
-- **Ingest** → drag in a CSV; the delimiter, header, and column types are inferred (DuckDB
-  `sniff_csv`/`read_csv_auto`), shown for review; pick columns + a target table → it creates and
-  runs the load job. (This is the §1.1 Option B path; use it to test the PS dataset.)
+- **Ingest** → a unified menu with the three §1.1 pathways:
+  - **CSV file** (Option B): drag-and-drop; delimiter/header/column types inferred (DuckDB
+    `sniff_csv`/`read_csv_auto`) and shown for review; pick columns + target table → creates and
+    runs the load job. Use this to test the PS dataset.
+  - **From connection** (Option A): pick a saved connection → introspect tables → infer schema →
+    data preview → load.
+  - **DuckDB SQL** (Option C): write a SELECT over already-loaded tables (table chips insert at
+    the cursor), server-side validate (SELECT-only), preview, then **save as a transform job** —
+    the Gateway executes the SQL itself, preserving the single-writer rule.
 - **Connections** → save Oracle/Postgres/MySQL/MSSQL/generic connections (credentials **encrypted
   at rest** with Fernet, never returned); **Test** runs a live probe. Then create a job with
   source = that connection, pick a table (introspected), infer columns, and load.
@@ -153,8 +159,7 @@ uv run upm demo                              # or: uv run upm cs-demo
 ```
 
 **What's intentionally not here yet** (so you don't flag it as a bug): maps (Phase 3), AI chat tool-loop
-(scaffold only), drag-and-drop dashboard layout (grid is numeric for now), and DuckDB-direct-query as a
-job source. See the roadmap table below.
+(scaffold only), and drag-and-drop dashboard layout (grid is numeric for now). See the roadmap table below.
 
 ## Architecture (what runs where)
 
@@ -213,7 +218,7 @@ cd apps/frontend && npm run build   # type-check + production build
 |-------|-------|--------------|
 | 0 | Skeleton, Compose, Postgres+Alembic, Redis, shared-schemas, auth, Gateway interface | **Done** |
 | 1 | Structured job → Parquet → swap → registry+freshness; catalog; one dashboard; Viewer + scope; "data as of"; query cache | **Done** |
-| 2 | Multi-source ingestion (CSV upload + schema inference ✅, saved RDBMS connections ✅, Oracle/structured ✅), Builder UIs (Jobs + Dashboard builder ✅), load modes ✅, watermarks ✅, idempotency ✅, retries/backoff/DLQ ✅, run-history UI ✅, SQL governance ✅, validate/preview ✅ | **Done** (DuckDB-direct-query source + live-Oracle EXPLAIN deferred) |
+| 2 | Multi-source ingestion (CSV upload + schema inference ✅, saved RDBMS connections ✅, DuckDB direct query / transform jobs ✅, Oracle/structured ✅), Builder UIs (Jobs + Dashboard builder ✅), load modes ✅, watermarks ✅, idempotency ✅, retries/backoff/DLQ ✅, run-history UI ✅, SQL governance ✅, validate/preview ✅ | **Done** (live-Oracle EXPLAIN deferred) |
 | 3 | Full chart palette ✅, structured aggregations/group-by ✅, grid layout ✅, projects ✅, in-app Dashboard Builder with live preview ✅, cache invalidation ✅ | **Core done** (drag-and-drop layout + cascading filters: polish) |
 | 4 | Maps (MapLibre + sites.csv geo), retention/compaction jobs, observability dashboards, backup tooling, Gateway promotion | Seams in place; **deferred to Phase 3 per request** |
 | 5 | AI chat (Anthropic Claude + Qwen, pluggable) | Scaffold + SELECT-only guard shipped; tool-loop pending |

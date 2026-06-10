@@ -19,6 +19,7 @@ from upm_control_plane import session_scope
 from upm_control_plane.mapping import row_to_definition
 from upm_control_plane.models import JobConfig, JobRun, TableRegistry
 from upm_shared.constants import LOAD_QUEUE
+from upm_shared.enums import SourceKind
 from upm_shared.loadcmd import LoadCommand
 
 from upm_ingestion.config import IngestionConfig
@@ -79,6 +80,21 @@ def _extract(job_id: int) -> tuple[dict, str | None, int, str | None]:
         run, watermark_before = _begin_run(session, job_id)
         run_id = run.id
         target_table = job_row.target_table
+
+    # Transform jobs (SELECT over existing DuckDB tables) have no extract step: the
+    # Gateway executes the validated SQL itself. Workers never open DuckDB.
+    if jd.source.kind is SourceKind.DUCKDB_QUERY:
+        load_kwargs = {
+            "run_id": str(run_id),
+            "job_config_id": job_id,
+            "table": target_table,
+            "duckdb_sql": jd.source.duckdb_sql,
+            "load_mode": jd.load_mode,
+            "key_columns": jd.key_columns,
+            "watermark_value": None,
+            "rows_read": 0,
+        }
+        return load_kwargs, str(run_id), 0, None
 
     source = get_source(jd, cfg)
 

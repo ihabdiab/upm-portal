@@ -102,14 +102,27 @@ class DuckDBGateway:
             )
 
     # ----- writes (serialized; the only RW path) --------------------------
+    def _source_expr(self, cmd: LoadCommand) -> str:
+        """The FROM-able source for a load: a Parquet reader, or a validated SELECT
+        over existing DuckDB tables (transform load, kind=duckdb_query)."""
+        if cmd.duckdb_sql:
+            from upm_sql_tools.validate import assert_select_only
+
+            assert_select_only(cmd.duckdb_sql, dialect="duckdb")
+            return f"({cmd.duckdb_sql})"
+        if not cmd.landing_path:
+            raise ValueError("load command needs landing_path or duckdb_sql")
+        return _pq(cmd.landing_path)
+
     def load(self, cmd: LoadCommand) -> LoadResult:
-        """Load one Parquet file into the target table per its load mode, then bump the
-        registry. Serialized by the lock; idempotent for full/upsert on replay."""
+        """Load one Parquet file (or SELECT result) into the target table per its load
+        mode, then bump the registry. Serialized by the lock; idempotent for
+        full/upsert on replay."""
         with self._lock:
             con = self._connection()
             target = quote_ident(cmd.table)
             staging = quote_ident(f"{cmd.table}__staging")
-            src = _pq(cmd.landing_path)
+            src = self._source_expr(cmd)
             self._mark_load_started(cmd.table)
 
             rows_written = int(con.execute(f"SELECT count(*) FROM {src}").fetchone()[0])

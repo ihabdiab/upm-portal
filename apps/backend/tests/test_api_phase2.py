@@ -116,6 +116,62 @@ def test_csv_upload_job_run_query(client):
     assert rows == {"North": 40, "South": 20}
 
 
+def test_duckdb_query_preview_validate_and_transform_job(client):
+    h = _auth(client)
+    # Load a base table first via CSV.
+    csv = b"region,traffic\nNorth,10\nNorth,30\nSouth,20\n"
+    up = client.post("/api/ingest/uploads", headers=h, files={"file": ("base.csv", csv, "text/csv")})
+    job = client.post("/api/jobs", headers=h, json={
+        "name": "load_base", "source": {"kind": "csv", "upload_id": up.json()["id"], "columns": []},
+        "target_table": "base_kpi", "schedule": {"every": "1d"}, "load_mode": "full",
+    })
+    client.post(f"/api/jobs/{job.json()['id']}/run", headers=h)
+
+    # Option C: validate + preview a SELECT over the loaded table.
+    bad = client.post("/api/duckdb/validate", headers=h, json={"sql": "DROP TABLE base_kpi"})
+    assert bad.status_code == 400
+
+    sql = 'SELECT "region", sum("traffic") AS total FROM "base_kpi" GROUP BY "region"'
+    assert client.post("/api/duckdb/validate", headers=h, json={"sql": sql}).json()["ok"] is True
+    prev = client.post("/api/duckdb/preview", headers=h, json={"sql": sql})
+    assert prev.status_code == 200, prev.text
+    assert {r["region"]: r["total"] for r in prev.json()["rows"]} == {"North": 40, "South": 20}
+
+    # Create a transform job from the query (Gateway executes it) and run it.
+    tjob = client.post("/api/jobs", headers=h, json={
+        "name": "derive_region_totals",
+        "source": {"kind": "duckdb_query", "duckdb_sql": sql},
+        "target_table": "region_totals", "schedule": {"every": "1d"}, "load_mode": "full",
+    })
+    assert tjob.status_code == 201, tjob.text
+    run = client.post(f"/api/jobs/{tjob.json()['id']}/run", headers=h)
+    assert run.status_code == 200, run.text
+    assert run.json()["row_count"] == 2
+
+    q = client.post("/api/query", headers=h, json={"table": "region_totals", "columns": []})
+    assert q.status_code == 200
+    assert len(q.json()["rows"]) == 2
+
+
+def test_query_include_sql_echo(client):
+    h = _auth(client)
+    csv = b"a,b\n1,2\n"
+    up = client.post("/api/ingest/uploads", headers=h, files={"file": ("s.csv", csv, "text/csv")})
+    job = client.post("/api/jobs", headers=h, json={
+        "name": "load_s", "source": {"kind": "csv", "upload_id": up.json()["id"], "columns": []},
+        "target_table": "s_tbl", "schedule": {"every": "1d"}, "load_mode": "full",
+    })
+    client.post(f"/api/jobs/{job.json()['id']}/run", headers=h)
+
+    body = {"table": "s_tbl", "columns": ["a"]}
+    plain = client.post("/api/query", headers=h, json=body).json()
+    assert plain["sql"] is None
+    with_sql = client.post("/api/query", headers=h, json={**body, "include_sql": True}).json()
+    assert with_sql["sql"] is not None and "SELECT" in with_sql["sql"]
+    # Same cache entry serves both shapes.
+    assert with_sql["cached"] is True
+
+
 def test_csv_preview_without_saving(client):
     h = _auth(client)
     csv = b"a,b\n1,x\n2,y\n"

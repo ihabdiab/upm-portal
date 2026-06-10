@@ -44,10 +44,15 @@ def run_query(
         reg.last_load_succeeded_at, schedule_interval_seconds(schedule), settings.stale_k
     )
 
-    cache_key = query_cache_key(body.table, version, body.model_dump(mode="json"))
+    # include_sql must not fragment the cache: key on the query itself only.
+    cache_payload = body.model_dump(mode="json", exclude={"include_sql"})
+    cache_key = query_cache_key(body.table, version, cache_payload)
     cached = services.cache.get(cache_key)
     if cached is not None:
-        return QueryResponse(**{**cached, "cached": True, "stale": stale})
+        resp = QueryResponse(**{**cached, "cached": True, "stale": stale})
+        if not body.include_sql:
+            resp.sql = None
+        return resp
 
     try:
         sql, params = build_read_select(body)
@@ -70,6 +75,9 @@ def run_query(
         data_as_of=reg.last_load_succeeded_at,
         stale=stale,
         cached=False,
+        sql=sql,  # cached entries always carry it; stripped below if not requested
     )
     services.cache.set(cache_key, resp.model_dump(mode="json"), settings.query_cache_ttl_s)
+    if not body.include_sql:
+        resp.sql = None
     return resp

@@ -22,7 +22,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import { api } from "../api/client";
 import type { ProjectOut, TableSummary, Widget } from "../api/types";
-import WidgetRenderer from "../components/WidgetRenderer";
+import WidgetRenderer, { effectiveViz } from "../components/WidgetRenderer";
 
 const TYPES = ["line", "bar", "area", "pie", "scatter", "kpi", "table"];
 const AGG_FNS = ["sum", "avg", "min", "max", "count", "count_distinct", "median", "stddev"];
@@ -126,6 +126,7 @@ export default function DashboardBuilderPage() {
         const cols = colsByTable[w.source.table] ?? [];
         const aggs = (w.query.aggregations ?? []) as any[];
         const groupBy = (w.query.groupBy ?? []) as string[];
+        const auto = effectiveViz(w);
         return (
           <Accordion key={w.id} defaultExpanded={widgets.length <= 2}>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -193,19 +194,19 @@ export default function DashboardBuilderPage() {
                       </TextField>
                     </Stack>
 
-                    <Divider textAlign="left"><Typography variant="caption">Visualization</Typography></Divider>
+                    <Divider textAlign="left"><Typography variant="caption">Visualization (auto-mapped from the query — override only if needed)</Typography></Divider>
                     {w.type === "kpi" ? (
                       <Stack direction="row" spacing={2}>
-                        <TextField label="Value field" value={w.viz.value ?? ""} onChange={(e) => updateViz(i, { value: e.target.value })} sx={{ width: 160 }} />
+                        <TextField label="Value field" value={w.viz.value ?? ""} placeholder={auto.value} helperText={!w.viz.value ? `auto: ${auto.value}` : " "} onChange={(e) => updateViz(i, { value: e.target.value })} sx={{ width: 160 }} />
                         <TextField label="Unit" value={w.viz.unit ?? ""} onChange={(e) => updateViz(i, { unit: e.target.value })} sx={{ width: 120 }} />
                         <TextField label="Precision" type="number" value={w.viz.precision ?? 2} onChange={(e) => updateViz(i, { precision: Number(e.target.value) })} sx={{ width: 120 }} />
                       </Stack>
                     ) : w.type !== "table" ? (
                       <Stack direction="row" spacing={2}>
-                        <TextField label="X / name" value={w.viz.x ?? ""} onChange={(e) => updateViz(i, { x: e.target.value })} sx={{ width: 160 }} />
-                        <TextField label="Y / value" value={w.viz.y ?? ""} onChange={(e) => updateViz(i, { y: e.target.value })} sx={{ width: 160 }} />
+                        <TextField label="X / name" value={w.viz.x ?? ""} placeholder={auto.x ?? ""} helperText={!w.viz.x && auto.x ? `auto: ${auto.x}` : " "} onChange={(e) => updateViz(i, { x: e.target.value })} sx={{ width: 160 }} />
+                        <TextField label="Y / value" value={w.viz.y ?? ""} placeholder={auto.y ?? ""} helperText={!w.viz.y && auto.y ? `auto: ${auto.y}` : " "} onChange={(e) => updateViz(i, { y: e.target.value })} sx={{ width: 160 }} />
                         {(w.type === "line" || w.type === "area") && (
-                          <TextField label="Series (optional)" value={w.viz.series ?? ""} onChange={(e) => updateViz(i, { series: e.target.value })} sx={{ width: 160 }} />
+                          <TextField label="Series" value={w.viz.series ?? ""} placeholder={auto.series ?? ""} helperText={!w.viz.series && auto.series ? `auto: ${auto.series}` : " "} onChange={(e) => updateViz(i, { series: e.target.value })} sx={{ width: 160 }} />
                         )}
                       </Stack>
                     ) : (

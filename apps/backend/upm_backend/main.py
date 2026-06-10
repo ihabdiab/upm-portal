@@ -20,6 +20,7 @@ from upm_backend.routers import (
     catalog,
     connections,
     dashboards,
+    duckdb_query,
     health,
     ingest,
     jobs,
@@ -77,7 +78,7 @@ def create_app() -> FastAPI:
     )
     for r in (
         health, auth, projects, admin, catalog, query, jobs, dashboards,
-        connections, ingest, ai,
+        connections, ingest, duckdb_query, ai,
     ):
         app.include_router(r.router, prefix="/api")
     return app

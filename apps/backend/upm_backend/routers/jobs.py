@@ -209,6 +209,16 @@ def validate_job(
         return {"ok": True, "rendered_sql": None, "columns": columns,
                 "warnings": ["extracts via the saved connection using SQLAlchemy"]}
 
+    if body.source.kind is SourceKind.DUCKDB_QUERY:
+        from upm_sql_tools.validate import SqlValidationError, assert_select_only
+
+        try:
+            assert_select_only(body.source.duckdb_sql or "", dialect="duckdb")
+        except SqlValidationError as e:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"validation failed: {e}")
+        return {"ok": True, "rendered_sql": body.source.duckdb_sql, "columns": [],
+                "warnings": ["transform load: the Gateway executes this SELECT itself"]}
+
     raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind {body.source.kind}")
 
 
@@ -216,8 +226,25 @@ def validate_job(
 def preview_job(
     body: JobDefinition,
     _: UserContext = Depends(require_cap("job:author")),
+    services=Depends(get_services),
 ) -> dict:
     """Bounded sample from the (unsaved) source, for the Builder's preview step."""
+    from fastapi.encoders import jsonable_encoder
+
+    if body.source.kind is SourceKind.DUCKDB_QUERY:
+        from upm_sql_tools.validate import SqlValidationError, assert_select_only
+
+        try:
+            assert_select_only(body.source.duckdb_sql or "", dialect="duckdb")
+            _cols, rows = services.gateway.execute_read(
+                f"SELECT * FROM ({body.source.duckdb_sql}) LIMIT 20", []
+            )
+        except SqlValidationError as e:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"preview failed: {e}")
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"preview failed: {e}")
+        return {"rows": jsonable_encoder(rows), "count": len(rows)}
+
     from upm_ingestion.sources import get_source
 
     try:
@@ -225,6 +252,4 @@ def preview_job(
         rows = source.preview(body, n=20)
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"preview failed: {e}")
-    from fastapi.encoders import jsonable_encoder
-
     return {"rows": jsonable_encoder(rows), "count": len(rows)}
