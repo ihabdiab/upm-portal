@@ -13,7 +13,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from upm_backend.config import get_settings
-from upm_backend.routers import admin, ai, auth, catalog, dashboards, health, jobs, projects, query
+from upm_backend.routers import (
+    admin,
+    ai,
+    auth,
+    catalog,
+    connections,
+    dashboards,
+    health,
+    ingest,
+    jobs,
+    projects,
+    query,
+)
 from upm_backend.runtime import apply_runtime_env
 from upm_backend.services import build_services
 
@@ -63,7 +75,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    for r in (health, auth, projects, admin, catalog, query, jobs, dashboards, ai):
+    for r in (
+        health, auth, projects, admin, catalog, query, jobs, dashboards,
+        connections, ingest, ai,
+    ):
         app.include_router(r.router, prefix="/api")
     return app
 

@@ -184,3 +184,44 @@ class AuditLog(Base):
     before: Mapped[dict | None] = mapped_column(JsonType)
     after: Mapped[dict | None] = mapped_column(JsonType)
     ts: Mapped[datetime] = _now()
+
+
+class Connection(Base):
+    """Saved RDBMS connection (§4). Credentials are stored encrypted, never plaintext."""
+
+    __tablename__ = "connections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    host: Mapped[str | None] = mapped_column(String(255))
+    port: Mapped[int | None] = mapped_column(Integer)
+    database: Mapped[str | None] = mapped_column(String(255))
+    username: Mapped[str | None] = mapped_column(String(255))
+    encrypted_password: Mapped[str | None] = mapped_column(Text)
+    encrypted_url: Mapped[str | None] = mapped_column(Text)  # for kind=generic
+    extra: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = _now()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class Upload(Base):
+    """An uploaded CSV dataset (§1.1 Option B), ready to be used as a job source."""
+
+    __tablename__ = "uploads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)  # uuid4
+    original_filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    stored_path: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="csv")
+    delimiter: Mapped[str | None] = mapped_column(String(4))
+    has_header: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    row_estimate: Mapped[int | None] = mapped_column(Integer)
+    inferred_schema: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    suggested_table: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ready")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = _now()

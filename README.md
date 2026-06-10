@@ -5,9 +5,10 @@ Builder) and how it's shown (Dashboard Builder), and **Viewers** consume the das
 granted. Data is materialized permanently in **DuckDB**; dashboards query DuckDB only and never
 touch Oracle.
 
-This repository is the **v1** build of the design in
-[`docs/architecture-plan.md`](docs/architecture-plan.md) — Phase 0 (skeleton) + Phase 1 (a
-demo-able end-to-end MVP), with the structural seams for Phases 2–5 in place.
+This repository builds the design in [`docs/architecture-plan.md`](docs/architecture-plan.md):
+**v1** = Phase 0 (skeleton) + Phase 1 (demo-able MVP); the current increment adds the **Phase 2**
+slice — full Builder UIs (Jobs + Dashboards), **multi-source ingestion** (CSV upload with automatic
+schema inference, saved RDBMS **connections**), and real telecom data. Maps + AI chat are Phase 3+.
 
 > Because no live Oracle warehouse is attached, the ingestion source is pluggable and defaults to
 > a **synthetic telecom-KPI source**, so the whole pipeline runs end-to-end with no Oracle. Set
@@ -56,8 +57,32 @@ Open http://localhost:5173 and log in:
 | Viewer  | viewer@upm.com    | `viewer12345`  |
 
 The Viewer sees the **Hybrid Cell Overview** dashboard (KPIs, line/bar charts) with a
-"data as of …" badge. The Builder additionally gets the **Jobs** page with a **Run now** button
-and run history.
+"data as of …" badge. The Builder additionally gets **Ingest**, **Jobs**, **Connections**, and the
+**Dashboard Builder**.
+
+### Load the real CS dataset (replaces the synthetic dummy data)
+
+```bash
+uv run upm cs-demo            # ingests oracle-sample-data/.../CS_CELL_SAMPLE.csv via the CSV path
+```
+
+This runs the exact CSV pipeline the UI uses (infer schema → upload → job → Gateway load) and
+builds a **CS Cell KPIs (real data)** dashboard (~5.7k rows, 98 columns auto-typed). To load your
+own file: `uv run upm load-csv <path.csv> <table_name>`.
+
+## Phase 2 — Builders, CSV ingestion & connections
+
+Logged in as a Builder/Admin:
+
+- **Ingest** → drag in a CSV; the delimiter, header, and column types are inferred (DuckDB
+  `sniff_csv`/`read_csv_auto`), shown for review; pick columns + a target table → it creates and
+  runs the load job. (This is the §1.1 Option B path; use it to test the PS dataset.)
+- **Connections** → save Oracle/Postgres/MySQL/MSSQL/generic connections (credentials **encrypted
+  at rest** with Fernet, never returned); **Test** runs a live probe. Then create a job with
+  source = that connection, pick a table (introspected), infer columns, and load.
+- **Jobs** → New/Edit/Run/Delete; validate + preview before saving.
+- **Dashboard Builder** → add widgets (KPI/line/bar/area/pie/scatter/table), bind to a table with an
+  aggregation/group-by editor, map the visualization, and see a **live preview** before saving.
 
 ## Quickstart B — full stack with Docker Compose (prod-shaped)
 
@@ -127,6 +152,9 @@ cd apps/frontend && npm run build   # type-check + production build
 - `packages/dataplane/tests` — full + upsert idempotency + registry update.
 - `apps/backend/tests/test_api_smoke.py` — seed → load (synthetic) → login → catalog → query →
   cache hit → RBAC denial → job run + history → validate → dashboards, against the real app.
+- `apps/backend/tests/test_api_phase2.py` — connection CRUD + live test probe; CSV upload → schema
+  inference → create job → run → query the new table; preview without saving.
+- `apps/ingestion/tests` (CSV inference) · `control-plane/tests` (credential crypto + URL builder).
 
 ## v1 status vs. the phased roadmap
 
@@ -134,10 +162,10 @@ cd apps/frontend && npm run build   # type-check + production build
 |-------|-------|--------------|
 | 0 | Skeleton, Compose, Postgres+Alembic, Redis, shared-schemas, auth, Gateway interface | **Done** |
 | 1 | Structured job → Parquet → swap → registry+freshness; catalog; one dashboard; Viewer + scope; "data as of"; query cache | **Done** |
-| 2 | Load modes (append/upsert ✅), watermarks ✅, idempotency ✅, retries/backoff/DLQ ✅, run-history UI ✅, Builder ✅, SQL governance (structured + sqlglot + read-only acct + guards) ✅, validate ✅ | **Mostly done** (preview/EXPLAIN against live Oracle pending) |
-| 3 | Full chart palette ✅ (line/bar/area/pie/kpi/table), structured filters ✅, grid layout ✅, projects ✅, cache invalidation on load ✅ | **Core done** (in-app Dashboard *editor* UI pending; dashboards are API-editable) |
-| 4 | Maps, retention/compaction jobs, observability dashboards, backup tooling, Gateway promotion | Seams in place; **not yet built** |
-| 5 | AI chat (Qwen) | Scaffold + SELECT-only guard shipped; tool-loop pending endpoint |
+| 2 | Multi-source ingestion (CSV upload + schema inference ✅, saved RDBMS connections ✅, Oracle/structured ✅), Builder UIs (Jobs + Dashboard builder ✅), load modes ✅, watermarks ✅, idempotency ✅, retries/backoff/DLQ ✅, run-history UI ✅, SQL governance ✅, validate/preview ✅ | **Done** (DuckDB-direct-query source + live-Oracle EXPLAIN deferred) |
+| 3 | Full chart palette ✅, structured aggregations/group-by ✅, grid layout ✅, projects ✅, in-app Dashboard Builder with live preview ✅, cache invalidation ✅ | **Core done** (drag-and-drop layout + cascading filters: polish) |
+| 4 | Maps (MapLibre + sites.csv geo), retention/compaction jobs, observability dashboards, backup tooling, Gateway promotion | Seams in place; **deferred to Phase 3 per request** |
+| 5 | AI chat (Anthropic Claude + Qwen, pluggable) | Scaffold + SELECT-only guard shipped; tool-loop pending |
 
 ## §16 defaults adopted (override via `.env`)
 
@@ -152,7 +180,9 @@ real-world numbers still needed (row counts, LLM endpoint, peak viewers).
 uv run upm init-db            # create tables + seed RBAC
 uv run upm seed               # seed demo users/project/jobs/dashboard (idempotent)
 uv run upm run-job <name|id>  # extract+load one job inline (dev)
-uv run upm demo               # init + seed + load both demo jobs
+uv run upm demo               # init + seed + load both synthetic demo jobs
+uv run upm cs-demo            # init + seed + ingest the real CS sample CSV + build its dashboard
+uv run upm load-csv <path> <table>       # ingest any CSV end-to-end (upload + job + run)
 uv run upm-ingest enqueue <job>          # worker path: extract + push LoadCommand to Redis
 uv run upm-scheduler sync                # push job_configs schedules into RedBeat
 ```

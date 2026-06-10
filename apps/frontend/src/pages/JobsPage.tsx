@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -17,10 +18,13 @@ import {
   Typography,
 } from "@mui/material";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import AddIcon from "@mui/icons-material/Add";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import { api } from "../api/client";
 import type { JobOut, RunOut } from "../api/types";
 
 export default function JobsPage() {
+  const nav = useNavigate();
   const [jobs, setJobs] = useState<JobOut[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
   const [runs, setRuns] = useState<Record<number, RunOut[]>>({});
@@ -52,6 +56,12 @@ export default function JobsPage() {
     }
   }
 
+  async function remove(id: number) {
+    if (!confirm("Delete this job? (the loaded table is left intact)")) return;
+    await api.delete(`/jobs/${id}`);
+    load();
+  }
+
   function toggle(id: number) {
     setOpen((o) => (o === id ? null : id));
     if (!runs[id]) loadRuns(id);
@@ -61,13 +71,20 @@ export default function JobsPage() {
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom>
-        Extraction Jobs
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Each job extracts a watermarked delta to the Parquet landing zone, then the Gateway
-        loads it into DuckDB. Config is data — no deploys.
-      </Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
+        <Box>
+          <Typography variant="h5">Extraction Jobs</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Each job extracts a delta to the Parquet landing zone, then the Gateway loads it into
+            DuckDB. Config is data — no deploys.
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1}>
+          <Button startIcon={<UploadFileIcon />} onClick={() => nav("/ingest")}>Ingest CSV</Button>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => nav("/jobs/new")}>New job</Button>
+        </Stack>
+      </Stack>
+
       {msg && (
         <Alert severity="info" sx={{ mb: 2 }} onClose={() => setMsg(null)}>
           {msg}
@@ -76,16 +93,23 @@ export default function JobsPage() {
       <Stack spacing={2}>
         {jobs.map((j) => {
           const def = j.definition as any;
+          const src = def.source ?? {};
+          const sourceLabel =
+            src.kind === "csv" ? "csv upload"
+            : src.kind === "connection" ? `connection #${src.connection_id ?? "?"}`
+            : `${src.schema ?? "?"}.${src.table ?? "?"}`;
           return (
             <Card key={j.id} variant="outlined">
               <CardContent>
                 <Stack direction="row" alignItems="center" justifyContent="space-between">
                   <Box>
                     <Typography variant="h6">{def.name}</Typography>
-                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                      <Chip size="small" label={`${def.source.schema}.${def.source.table}`} />
+                    <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} flexWrap="wrap">
+                      <Chip size="small" color="secondary" variant="outlined" label={src.kind ?? "oracle"} />
+                      <Chip size="small" label={sourceLabel} />
+                      <Chip size="small" label={`→ ${def.target_table}`} />
                       <Chip size="small" color="primary" label={def.load_mode} variant="outlined" />
-                      <Chip size="small" label={`every ${def.schedule.every ?? def.schedule.cron}`} variant="outlined" />
+                      <Chip size="small" label={`every ${def.schedule?.every ?? def.schedule?.cron}`} variant="outlined" />
                       <Chip
                         size="small"
                         label={j.is_enabled ? "enabled" : "disabled"}
@@ -98,6 +122,8 @@ export default function JobsPage() {
                     <Button size="small" onClick={() => toggle(j.id)}>
                       {open === j.id ? "Hide runs" : "Runs"}
                     </Button>
+                    <Button size="small" onClick={() => nav(`/jobs/${j.id}/edit`)}>Edit</Button>
+                    <Button size="small" color="error" onClick={() => remove(j.id)}>Delete</Button>
                     <Button
                       size="small"
                       variant="contained"
@@ -131,11 +157,7 @@ export default function JobsPage() {
                               size="small"
                               label={r.status}
                               color={
-                                r.status === "success"
-                                  ? "success"
-                                  : r.status === "failed"
-                                    ? "error"
-                                    : "warning"
+                                r.status === "success" ? "success" : r.status === "failed" ? "error" : "warning"
                               }
                             />
                           </TableCell>
@@ -148,9 +170,7 @@ export default function JobsPage() {
                       {(runs[j.id] ?? []).length === 0 && (
                         <TableRow>
                           <TableCell colSpan={6}>
-                            <Typography variant="body2" color="text.secondary">
-                              No runs yet.
-                            </Typography>
+                            <Typography variant="body2" color="text.secondary">No runs yet.</Typography>
                           </TableCell>
                         </TableRow>
                       )}

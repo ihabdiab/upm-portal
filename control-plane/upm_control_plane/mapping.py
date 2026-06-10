@@ -22,8 +22,10 @@ from upm_control_plane.models import JobConfig
 def definition_to_kwargs(jd: JobDefinition, *, created_by: int | None = None) -> dict:
     return {
         "name": jd.name,
-        "source_schema": jd.source.schema_name,
-        "source_table": jd.source.table,
+        # These two NOT-NULL columns are RDBMS-oriented; fall back to kind/target for
+        # CSV/query sources so the row stays valid (full source spec lives in query_definition).
+        "source_schema": jd.source.schema_name or jd.source.kind.value,
+        "source_table": jd.source.table or jd.target_table,
         "query_definition": jd.source.model_dump(by_alias=True, mode="json"),
         "target_table": jd.target_table,
         "schedule": jd.schedule.model_dump(mode="json"),

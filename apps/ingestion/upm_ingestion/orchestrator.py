@@ -70,7 +70,6 @@ def _target_table(session, job_id: int) -> str:
 def _extract(job_id: int) -> tuple[dict, str | None, int, str | None]:
     """Create the run row, extract to Parquet. Returns (load_kwargs, run_id, rows_read, wm)."""
     cfg = IngestionConfig.from_env()
-    source = get_source(cfg)
 
     with session_scope() as session:
         job_row = session.get(JobConfig, job_id)
@@ -80,6 +79,8 @@ def _extract(job_id: int) -> tuple[dict, str | None, int, str | None]:
         run, watermark_before = _begin_run(session, job_id)
         run_id = run.id
         target_table = job_row.target_table
+
+    source = get_source(jd, cfg)
 
     landing_path = _landing_path(cfg.landing_dir, target_table, run_id)
     try:

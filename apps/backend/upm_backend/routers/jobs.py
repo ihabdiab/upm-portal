@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from upm_control_plane.models import JobConfig, JobRun, TableRegistry
-from upm_shared.enums import SourceMode
+from upm_shared.enums import SourceKind, SourceMode
 from upm_shared.jobs import JobDefinition
 from upm_sql_tools.oracle_builder import build_extract_select
 
@@ -179,21 +179,52 @@ def validate_job(
     _: UserContext = Depends(require_cap("job:author")),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    """Dry-run: render the extraction SQL and validate it. With a live Oracle this would
-    also EXPLAIN PLAN; the synthetic source confirms the structured spec is well-formed."""
+    """Dry-run validation, per source kind. RDBMS sources render + validate the extraction
+    SQL (and would EXPLAIN PLAN against a live Oracle); CSV/connection confirm the spec."""
     warnings: list[str] = []
-    try:
-        sql, _binds = build_extract_select(
-            body.source,
-            watermark_column=body.watermark.column if body.watermark else None,
-            watermark_value="<watermark>",
-            limit=body.guards.row_cap,
-            allowed_schemas={s.lower() for s in settings.allowed_schemas_set},
-        )
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"validation failed: {e}")
+    columns = list(body.source.columns)
 
-    if body.source.mode is SourceMode.RAW:
-        warnings.append("raw SQL mode: executes behind read-only Oracle account + caps")
-    columns = body.source.columns if body.source.mode is SourceMode.STRUCTURED else []
-    return {"ok": True, "rendered_sql": sql, "columns": columns, "warnings": warnings}
+    if body.source.kind is SourceKind.ORACLE:
+        try:
+            sql, _binds = build_extract_select(
+                body.source,
+                watermark_column=body.watermark.column if body.watermark else None,
+                watermark_value="<watermark>",
+                limit=body.guards.row_cap,
+                allowed_schemas={s.lower() for s in settings.allowed_schemas_set},
+            )
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"validation failed: {e}")
+        if body.source.mode is SourceMode.RAW:
+            warnings.append("raw SQL mode: executes behind read-only Oracle account + caps")
+        return {"ok": True, "rendered_sql": sql, "columns": columns, "warnings": warnings}
+
+    if body.source.kind is SourceKind.CSV:
+        if not body.source.upload_id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "csv source requires an upload_id")
+        return {"ok": True, "rendered_sql": None, "columns": columns,
+                "warnings": ["csv load is full-refresh by default"]}
+
+    if body.source.kind is SourceKind.CONNECTION:
+        return {"ok": True, "rendered_sql": None, "columns": columns,
+                "warnings": ["extracts via the saved connection using SQLAlchemy"]}
+
+    raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind {body.source.kind}")
+
+
+@router.post("/jobs/preview")
+def preview_job(
+    body: JobDefinition,
+    _: UserContext = Depends(require_cap("job:author")),
+) -> dict:
+    """Bounded sample from the (unsaved) source, for the Builder's preview step."""
+    from upm_ingestion.sources import get_source
+
+    try:
+        source = get_source(body)
+        rows = source.preview(body, n=20)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"preview failed: {e}")
+    from fastapi.encoders import jsonable_encoder
+
+    return {"rows": jsonable_encoder(rows), "count": len(rows)}

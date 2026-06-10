@@ -169,7 +169,9 @@ def _ensure_job(session: Session, jd: JobDefinition, created_by: int) -> JobConf
     return row
 
 
-def seed_demo(session: Session) -> dict:
+def seed_users_and_project(session: Session) -> tuple[dict[str, User], Project]:
+    """Create the demo users, project, and role assignments. Idempotent. Shared by the
+    synthetic demo and the real-CS-data flow."""
     seed_rbac(session)
 
     users: dict[str, User] = {}
@@ -188,6 +190,11 @@ def seed_demo(session: Session) -> dict:
 
     for email, _pw, _name, role_name in DEMO_USERS:
         _assign_role(session, users[email], project, role_name)
+    return users, project
+
+
+def seed_demo(session: Session) -> dict:
+    users, project = seed_users_and_project(session)
 
     admin_id = users["admin@upm.com"].id
     _ensure_job(session, _cs_job(), created_by=admin_id)

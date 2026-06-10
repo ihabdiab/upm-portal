@@ -16,12 +16,15 @@ class Settings(BaseSettings):
     duckdb_load_spatial: bool = False
     landing_dir: str = "./data/landing"
     export_dir: str = "./data/exports"
+    upload_dir: str = "./data/uploads"
+    max_upload_mb: int = 200
 
     # Redis: when unset, the backend runs in single-process "dev" mode
     # (in-memory cache, inline job runner, no Redis load-consumer thread).
     redis_url: str | None = None
 
-    # Auth
+    # Auth + credential encryption (connection registry, §4)
+    secret_key: str | None = None  # Fernet key source for encrypting stored credentials
     jwt_secret: str = "dev-insecure-secret-change-me"
     jwt_alg: str = "HS256"
     access_ttl_min: int = 60

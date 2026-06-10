@@ -9,9 +9,11 @@ x-backend-env: &backend-env
   UPM_DUCKDB_PATH: /data/duckdb/analytics.duckdb
   UPM_LANDING_DIR: /data/landing
   UPM_EXPORT_DIR: /data/exports
+  UPM_UPLOAD_DIR: /data/uploads
   UPM_SOURCE_TYPE: ${UPM_SOURCE_TYPE:-synthetic}
   UPM_ALLOWED_SOURCE_SCHEMAS: ${UPM_ALLOWED_SOURCE_SCHEMAS:-SON}
   UPM_JWT_SECRET: ${UPM_JWT_SECRET:-dev-insecure-change-me-0123456789abcdef}
+  UPM_SECRET_KEY: ${UPM_SECRET_KEY:-dev-insecure-secret-key-change-me}
   UPM_STALE_K: ${UPM_STALE_K:-2.0}
 
 services:

@@ -7,10 +7,14 @@ import LoginPage from "./pages/LoginPage";
 import CatalogPage from "./pages/CatalogPage";
 import DashboardsPage from "./pages/DashboardsPage";
 import DashboardViewPage from "./pages/DashboardViewPage";
+import DashboardBuilderPage from "./pages/DashboardBuilderPage";
 import JobsPage from "./pages/JobsPage";
+import JobBuilderPage from "./pages/JobBuilderPage";
+import ConnectionsPage from "./pages/ConnectionsPage";
+import IngestWizardPage from "./pages/IngestWizardPage";
 
 export default function App() {
-  const { me, loading } = useAuth();
+  const { me, loading, has } = useAuth();
 
   if (loading) {
     return (
@@ -28,6 +32,9 @@ export default function App() {
     );
   }
 
+  const canAuthorJobs = has("job:author");
+  const canAuthorDash = has("dashboard:author");
+
   return (
     <Layout>
       <Routes>
@@ -35,7 +42,13 @@ export default function App() {
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/dashboards" element={<DashboardsPage />} />
         <Route path="/dashboards/:id" element={<DashboardViewPage />} />
-        <Route path="/jobs" element={<JobsPage />} />
+        {canAuthorDash && <Route path="/dashboards/new" element={<DashboardBuilderPage />} />}
+        {canAuthorDash && <Route path="/dashboards/:id/edit" element={<DashboardBuilderPage />} />}
+        {canAuthorJobs && <Route path="/jobs" element={<JobsPage />} />}
+        {canAuthorJobs && <Route path="/jobs/new" element={<JobBuilderPage />} />}
+        {canAuthorJobs && <Route path="/jobs/:id/edit" element={<JobBuilderPage />} />}
+        {canAuthorJobs && <Route path="/ingest" element={<IngestWizardPage />} />}
+        {canAuthorJobs && <Route path="/connections" element={<ConnectionsPage />} />}
         <Route path="*" element={<Navigate to="/dashboards" replace />} />
       </Routes>
     </Layout>

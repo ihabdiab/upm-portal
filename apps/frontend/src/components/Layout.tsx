@@ -15,7 +15,9 @@ import { useAuth } from "../auth/AuthContext";
 const NAV = [
   { to: "/dashboards", label: "Dashboards", cap: "project:view" },
   { to: "/catalog", label: "Catalog", cap: "project:view" },
+  { to: "/ingest", label: "Ingest", cap: "job:author" },
   { to: "/jobs", label: "Jobs", cap: "job:author" },
+  { to: "/connections", label: "Connections", cap: "job:author" },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

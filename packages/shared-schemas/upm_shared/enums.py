@@ -20,6 +20,25 @@ class SourceMode(str, Enum):
     RAW = "raw"
 
 
+class SourceKind(str, Enum):
+    """Where a job's rows come from (Phase 2 multi-source ingestion, §1.1)."""
+
+    ORACLE = "oracle"            # env-configured Oracle (legacy direct path) or synthetic
+    CONNECTION = "connection"    # a saved RDBMS connection from the registry (§4)
+    CSV = "csv"                  # an uploaded CSV dataset (Option B)
+    DUCKDB_QUERY = "duckdb_query"  # a SELECT over already-loaded DuckDB tables (Option C)
+
+
+class ConnectionKind(str, Enum):
+    """Supported RDBMS connection types in the registry (§4.2)."""
+
+    ORACLE = "oracle"
+    POSTGRESQL = "postgresql"
+    MYSQL = "mysql"
+    MSSQL = "mssql"
+    GENERIC = "generic"  # raw SQLAlchemy URL
+
+
 class RetentionStrategy(str, Enum):
     KEEP_FOREVER = "keep_forever"
     ROLLING_WINDOW = "rolling_window"
