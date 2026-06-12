@@ -87,6 +87,21 @@ Notice what's **not** in Journey B: **Oracle.** The read path *physically cannot
 warehouse. Even if the bridge is on fire, dashboards keep working off the local pantry — they just
 show an honest **amber "stale" badge** so nobody makes a decision on old milk. 🥛
 
+### Journey A now has three on-ramps 🛣️ (Phase 2)
+
+The "get data in" trip used to start only at Oracle. The **Ingest** page now offers three doors,
+and all three end at the same loading dock + librarian:
+
+| Door | What you do | What happens underneath |
+|---|---|---|
+| 📄 **CSV file** | Drag a file in. | DuckDB's sniffer infers the delimiter/header/column types; you review the schema and preview rows; saving creates a normal load job (upload → Parquet → Gateway). |
+| 🔌 **From connection** | Pick a saved connection (Oracle/Postgres/MySQL/MSSQL — credentials stored **encrypted**), pick a table. | SQLAlchemy introspects the table's schema, shows a preview, then the worker extracts → Parquet → Gateway, same as always. |
+| ⌨️ **DuckDB SQL** | Write a SELECT over tables *already in the pantry*. | The SQL is frisked (single-statement SELECT only), previewed, then saved as a **transform job** — the *librarian themself* runs it (workers never touch DuckDB), materializing the result as a new table. |
+
+Whatever the door, the result is identical: a scheduled **job** row in the filing cabinet, a
+**table** in the pantry, a **freshness** entry in the catalog — and the table is immediately
+usable in the Dashboard Builder.
+
 ---
 
 ## 4. The official blueprint, decoded 🗺️
@@ -280,8 +295,11 @@ Here's every dependency and *why it earned its spot*. No tool was added "because
   showroom. nginx serves the built frontend.
 - **Prometheus + Grafana** — the dashboards *about the system itself* (health, speed). Wired in,
   fleshed out in a later phase.
-- **pytest + ruff** — the inspectors. `pytest` runs 12 automated tests that prove the pipeline works;
+- **pytest + ruff** — the inspectors. `pytest` runs 23 automated tests that prove the pipeline works
+  (including CSV-upload→job→query, connection CRUD, transform jobs, and SQL-injection guards);
   `ruff` keeps the code tidy and consistent. Both run automatically in **CI** (GitHub Actions) on every push.
+- **cryptography (Fernet)** — the lockbox. Saved connection passwords are encrypted at rest with a
+  key from `UPM_SECRET_KEY`; the API never returns them, not even to admins.
 
 ---
 
@@ -340,8 +358,12 @@ Let's trace a single `traffic_erl` value from birth to chart, naming the real fi
 7. 📊 Back comes `{ "region": "North", "t": 42.39 }`, stamped `"data as of 3:00 PM"`, and Recharts
    draws the bar. Your `42.3` is now a pixel. 🎉
 
-That whole trip — and the RBAC, freshness, and cache-hit behavior around it — is exactly what the 12
-automated tests verify.
+That whole trip — and the RBAC, freshness, and cache-hit behavior around it — is exactly what the 23
+automated tests verify. (And since Phase 2 the same trip runs on **real data**: `upm cs-demo` ingests
+the actual CS cell sample — 5,724 rows, 98 auto-typed columns — through the CSV door.)
+
+Want to see the trip from inside the UI? Every widget has a small **ⓘ button** that opens the
+*structured query* it sent **and the exact SQL the backend executed** — no black boxes.
 
 ---
 
@@ -349,12 +371,13 @@ automated tests verify.
 
 | Built & tested ✅ | Scaffolded, finished later 🚧 |
 |---|---|
-| Login, roles/keycards (Admin/Builder/Viewer), per-project access | In-app dashboard *editor* UI (dashboards are API-editable now) |
-| Data catalog with freshness badges | Map widgets (MapLibre) on geo data |
-| Dashboards: line/bar/area/pie/KPI/table charts | Retention/compaction cleanup jobs |
-| The full write pipeline (synthetic) with full/append/upsert + idempotency | Live Oracle preview/EXPLAIN (driver is ready, no server yet) |
-| Job runner + run history, "Run now" button | AI chat tool-loop (the safety guard ships now; loop awaits the LLM endpoint) |
-| Query cache, freshness/staleness, audit log | Prometheus app metrics export |
+| Login, roles/keycards (Admin/Builder/Viewer), per-project access | Map widgets (MapLibre + `sites.csv` lat/long) — Phase 3 |
+| Data catalog with freshness badges | AI chat tool-loop (the SELECT-only guard ships now; the chat loop + pluggable Claude/Qwen client is next) |
+| Dashboards: line/bar/area/pie/scatter/KPI/table, auto-mapped viz, per-widget query/SQL inspector | Drag-and-drop dashboard layout (grid positions are numeric fields for now) |
+| **Dashboard Builder UI** with live preview · **Jobs Builder** with validate/preview | Retention/compaction cleanup jobs |
+| **Ingest menu — all three doors**: CSV (drag-drop + schema inference), saved connections (encrypted creds, test probe, introspection), DuckDB SQL transform jobs | Live Oracle preview/EXPLAIN (driver is ready, no server yet) |
+| The full write pipeline with full/append/upsert + idempotency, **real CS data loaded** | Prometheus app metrics export |
+| Job runner + run history, "Run now" button · query cache, freshness/staleness, audit log | Gateway as a separate service (the seam exists; promoted only when scale demands) |
 
 ---
 
